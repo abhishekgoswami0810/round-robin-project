@@ -1,4 +1,4 @@
-# Round Robin Routing with Circuit Breaker - Spring WebFlux
+# Round Robin Routing API
 
 This project demonstrates a round-robin routing mechanism across multiple backend service instances with a circuit breaker mechanism using **Resilience4j** and **Spring WebFlux**.
 
