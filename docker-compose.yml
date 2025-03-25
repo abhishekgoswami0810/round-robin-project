@@ -1,0 +1,29 @@
+version: "3"
+services:
+  application-api-1:
+    build: ./application-api
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: 8081
+
+  application-api-2:
+    build: ./application-api
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+
+  application-api-3:
+    build: ./application-api
+    ports:
+      - "8083:8083"
+    environment:
+      SERVER_PORT: 8083
+
+  routing-api:
+    build: ./routing-api
+    ports:
+      - "8080:8080"
+    environment:
+      APPLICATION_API_INSTANCES: "http://application-api-1:8081,http://application-api-2:8082,http://application-api-3:8083"
