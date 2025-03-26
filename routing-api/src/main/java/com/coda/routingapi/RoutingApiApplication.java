@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @SpringBootApplication
+@EnableScheduling
 public class RoutingApiApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(RoutingApiApplication.class, args);

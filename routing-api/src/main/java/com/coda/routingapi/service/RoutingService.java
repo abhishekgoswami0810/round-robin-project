@@ -47,27 +47,7 @@ public class RoutingService {
         String baseUrl = healthyInstances.get(index);
         String url = baseUrl + "/api/echo";
 
-        CircuitBreaker cb = circuitBreakers.computeIfAbsent(baseUrl, key -> {
-            CircuitBreaker circuitBreaker = CircuitBreaker.of(baseUrl, CircuitBreakerConfig.custom()
-                    .failureRateThreshold(50)
-                    .waitDurationInOpenState(Duration.ofSeconds(30))
-                    .slidingWindowSize(5)
-                    .permittedNumberOfCallsInHalfOpenState(2)
-                    .build());
-
-            //just to log CB events here
-            circuitBreaker.getEventPublisher()
-                    .onStateTransition(event ->
-                            log.info("CircuitBreaker '{}' transitioned from {} → {}",
-                                    event.getCircuitBreakerName(),
-                                    event.getStateTransition().getFromState(),
-                                    event.getStateTransition().getToState()))
-                    .onCallNotPermitted(event ->
-                            log.info("CircuitBreaker '{}' is OPEN, call not permitted", event.getCircuitBreakerName()))
-                    .onError(event ->
-                            log.error("CircuitBreaker '{}' recorded error: {}", event.getCircuitBreakerName(), event.getThrowable().toString()));
-            return circuitBreaker;
-        });
+        CircuitBreaker cb = circuitBreakers.computeIfAbsent(baseUrl, key -> createCircuitBreaker(baseUrl));
 
         log.info("Routing to instance [{}]: {}", index, url);
 
@@ -85,5 +65,29 @@ public class RoutingService {
                     // Fallback - try next instance
                     return tryForward(payload, healthyInstances, attempt + 1);
                 });
+    }
+
+    private static CircuitBreaker createCircuitBreaker(String baseUrl) {
+
+        //TODO: move these to properties
+        CircuitBreaker circuitBreaker = CircuitBreaker.of(baseUrl, CircuitBreakerConfig.custom()
+                .failureRateThreshold(50)
+                .waitDurationInOpenState(Duration.ofSeconds(30))
+                .slidingWindowSize(5)
+                .permittedNumberOfCallsInHalfOpenState(2)
+                .build());
+
+        //just to log CB events here
+        circuitBreaker.getEventPublisher()
+                .onStateTransition(event ->
+                        log.info("CircuitBreaker '{}' transitioned from {} → {}",
+                                event.getCircuitBreakerName(),
+                                event.getStateTransition().getFromState(),
+                                event.getStateTransition().getToState()))
+                .onCallNotPermitted(event ->
+                        log.info("CircuitBreaker '{}' is OPEN, call not permitted", event.getCircuitBreakerName()))
+                .onError(event ->
+                        log.error("CircuitBreaker '{}' recorded error: {}", event.getCircuitBreakerName(), event.getThrowable().toString()));
+        return circuitBreaker;
     }
 }

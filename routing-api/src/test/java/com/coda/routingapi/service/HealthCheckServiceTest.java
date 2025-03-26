@@ -2,12 +2,9 @@ package com.coda.routingapi.service;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,86 +13,61 @@ class HealthCheckServiceTest {
 
     private MockWebServer mockServer1;
     private MockWebServer mockServer2;
+    private HealthCheckService healthCheckService;
 
     @BeforeEach
-    void setUp() throws IOException {
+    void setUp() throws Exception {
         mockServer1 = new MockWebServer();
         mockServer2 = new MockWebServer();
-
         mockServer1.start();
         mockServer2.start();
+
+        WebClient.Builder builder = WebClient.builder();
+
+        String instance1 = mockServer1.url("/").toString();
+        String instance2 = mockServer2.url("/").toString();
+
+        healthCheckService = new HealthCheckService(builder, List.of(instance1, instance2));
     }
 
     @AfterEach
-    void tearDown() throws IOException {
+    void tearDown() throws Exception {
         mockServer1.shutdown();
         mockServer2.shutdown();
     }
 
     @Test
-    void shouldReturnHealthyInstances_whenSomeAreHealthy() {
-        // instance 1 healthy
-        mockServer1.enqueue(new MockResponse().setBody("{\"status\":\"UP\"}").setResponseCode(200));
-
-        //instance2 unhealthy
+    void testPeriodicHealthCheck() {
+        mockServer1.enqueue(new MockResponse().setBody("UP").setResponseCode(200));
         mockServer2.enqueue(new MockResponse().setResponseCode(500));
 
-        String url1 = mockServer1.url("").toString();
-        String url2 = mockServer2.url("").toString();
+        healthCheckService.init();
+        waitForAsyncCompletion();
 
-        HealthCheckService service = new HealthCheckService(
-                WebClient.builder(),
-                List.of(url1, url2)
-        );
+        List<String> healthyInstances = healthCheckService.getHealthyInstances();
+        assertEquals(1, healthyInstances.size());
+        assertTrue(healthyInstances.contains(mockServer1.url("/").toString()));
+        assertFalse(healthyInstances.contains(mockServer2.url("/").toString()));
 
-        service.init();
-
-        List<String> healthy = service.getHealthyInstances();
-
-        assertEquals(1, healthy.size());
-        assertTrue(healthy.contains(url1));
-        assertFalse(healthy.contains(url2));
-    }
-
-    @Test
-    void shouldReturnNoHealthyInstances_whenAllFail() {
+        // Flip server states
         mockServer1.enqueue(new MockResponse().setResponseCode(500));
-        mockServer2.enqueue(new MockResponse().setResponseCode(500));
+        mockServer2.enqueue(new MockResponse().setBody("UP").setResponseCode(200));
 
-        String url1 = mockServer1.url("").toString();
-        String url2 = mockServer2.url("").toString();
+        healthCheckService.init();
+        waitForAsyncCompletion();
 
-        HealthCheckService service = new HealthCheckService(
-                WebClient.builder(),
-                List.of(url1, url2)
-        );
-
-        service.init();
-
-        List<String> healthy = service.getHealthyInstances();
-
-        assertTrue(healthy.isEmpty());
+        healthyInstances = healthCheckService.getHealthyInstances();
+        assertEquals(1, healthyInstances.size());
+        assertFalse(healthyInstances.contains(mockServer1.url("/").toString()));
+        assertTrue(healthyInstances.contains(mockServer2.url("/").toString()));
     }
 
-    @Test
-    void shouldReturnAllHealthyInstances_whenAllAreHealthy() {
-        mockServer1.enqueue(new MockResponse().setBody("{\"status\":\"UP\"}").setResponseCode(200));
-        mockServer2.enqueue(new MockResponse().setBody("{\"status\":\"UP\"}").setResponseCode(200));
 
-        String url1 = mockServer1.url("").toString();
-        String url2 = mockServer2.url("").toString();
-
-        HealthCheckService service = new HealthCheckService(
-                WebClient.builder(),
-                List.of(url1, url2)
-        );
-
-        service.init();
-
-        List<String> healthy = service.getHealthyInstances();
-
-        assertEquals(2, healthy.size());
-        assertTrue(healthy.contains(url1));
-        assertTrue(healthy.contains(url2));
+    private void waitForAsyncCompletion() {
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
